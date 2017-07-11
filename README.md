@@ -1,2 +1,2 @@
-# config-changer
+# config-editor
 Python config files changer
