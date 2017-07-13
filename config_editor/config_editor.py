@@ -109,24 +109,22 @@ class ConfigEditor(BaseEditor):
             dict_type=self.dict_type,
             allow_no_value=self.allow_no_value
         )
+        # pylint: disable=deprecated-method
         if self._filename:
             with open(self._filename) as file_handler:
                 if six.PY3:
                     # noinspection PyUnresolvedReferences
                     config.read_file(file_handler)
                 else:
-                    # pylint: disable=deprecated-method
                     config.readfp(file_handler)
-                    # pylint: enable=deprecated-method
         else:
             self._file_handler.seek(0)
             if six.PY3:
                 # noinspection PyUnresolvedReferences
                 config.read_file(self._file_handler)
             else:
-                # pylint: disable=deprecated-method
                 config.readfp(self._file_handler)
-                # pylint: enable=deprecated-method
+        # pylint: enable=deprecated-method
         # noinspection PyArgumentList
         return collections.OrderedDict(
             [

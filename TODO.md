@@ -1,4 +1,4 @@
 * [ ] Unit tests
-* [ ] ConfigParser -> Yaml compatibility
+* [x] ConfigParser -> Yaml compatibility
 * [ ] Documentation
-* [ ] Fix false negative results on pylint
+* [x] Fix false negative results on pylint

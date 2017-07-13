@@ -15,10 +15,21 @@
 """YAML file editor."""
 
 from __future__ import absolute_import
+import collections
 
+import six
 import yaml
 
 from ._base_editor import BaseEditor
+
+yaml.add_representer(
+    collections.OrderedDict,
+    lambda self, data: self.represent_mapping(
+        'tag:yaml.org,2002:map',
+        six.iteritems(data)
+    ),
+    yaml.SafeDumper
+)
 
 
 class YamlEditor(BaseEditor):
