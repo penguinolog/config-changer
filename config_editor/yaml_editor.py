@@ -43,13 +43,15 @@ class YamlEditor(BaseEditor):
     )
 
     def __init__(
-            self,
-            source,
-            revert_on_exception=True,
-            canonical=None,
-            indent=None,
-            width=None,
-            allow_unicode=None,
+        self,
+        source,
+        revert_on_exception=True,
+        canonical=None,
+        indent=None,
+        width=None,
+        allow_unicode=None,
+        lock_descriptor=False,
+        no_block=False
     ):
         """JSON file editor context manager.
 
@@ -65,6 +67,10 @@ class YamlEditor(BaseEditor):
         :type width: typing.Optional[int]
         :param allow_unicode: Allow unicode in output.
         :type allow_unicode: typing.Optional[bool]
+        :param lock_descriptor: lock file descriptor during operation
+        :type lock_descriptor: bool
+        :param no_block: Raise exception if lock not acquired.
+        :type no_block: bool
         """
         self.__canonical = canonical
         self.__indent = indent
@@ -75,7 +81,9 @@ class YamlEditor(BaseEditor):
             YamlEditor, self
         ).__init__(
             source=source,
-            revert_on_exception=revert_on_exception
+            revert_on_exception=revert_on_exception,
+            lock_descriptor=lock_descriptor,
+            no_block=no_block,
         )
 
     @property
@@ -98,7 +106,21 @@ class YamlEditor(BaseEditor):
         """Allow unicode in output."""
         return self.__allow_unicode
 
-    def __repr__(self):
+    @property
+    def text(self):
+        """Content as text.
+
+        :rtype: str
+        """
+        return yaml.safe_dump(
+            self.content,
+            canonical=self.canonical,
+            indent=self.indent,
+            width=self.width,
+            allow_unicode=self.allow_unicode
+        )
+
+    def __repr__(self):  # pragma: no cover
         """Repr."""
         return (
             "<{cls}("
@@ -110,7 +132,7 @@ class YamlEditor(BaseEditor):
             "allow_unicode={self.allow_unicode!r}, "
             ") at {id}>".format(
                 cls=self.__class__.__name__,
-                source=self._filename or self._file_handler,
+                source=self._filename or self._file_descriptor,
                 self=self,
                 id=id(self)
             )
@@ -118,37 +140,20 @@ class YamlEditor(BaseEditor):
 
     def _read_source(self):
         """Read content from source."""
-        if self._filename:
-            with open(self._filename) as file_handler:
-                return yaml.safe_load(
-                    file_handler,
-                )
-        self._file_handler.seek(0)
+        self._file_descriptor.seek(0)
         return yaml.safe_load(
-            self._file_handler,
+            self._file_descriptor,
         )
 
     def _write_source(self):
         """Write content to the target format."""
-        if self._filename:
-            with open(self._filename, 'w') as file_handler:
-                yaml.safe_dump(
-                    self.content,
-                    file_handler,
-                    canonical=self.canonical,
-                    indent=self.indent,
-                    width=self.width,
-                    allow_unicode=self.allow_unicode
-                )
-                file_handler.flush()
-        else:
-            self._file_handler.seek(0)
-            yaml.safe_dump(
-                self.content,
-                self._file_handler,
-                canonical=self.canonical,
-                indent=self.indent,
-                width=self.width,
-                allow_unicode=self.allow_unicode
-            )
-            self._file_handler.flush()
+        self._file_descriptor.seek(0)
+        yaml.safe_dump(
+            self.content,
+            self._file_descriptor,
+            canonical=self.canonical,
+            indent=self.indent,
+            width=self.width,
+            allow_unicode=self.allow_unicode
+        )
+        self._file_descriptor.flush()

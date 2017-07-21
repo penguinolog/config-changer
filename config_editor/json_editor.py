@@ -33,14 +33,16 @@ class JsonEditor(BaseEditor):
     )
 
     def __init__(
-            self,
-            source,
-            revert_on_exception=True,
-            ensure_ascii=True,
-            allow_nan=True,
-            indent=None,
-            sort_keys=False,
-            object_pairs_hook=None,
+        self,
+        source,
+        revert_on_exception=True,
+        ensure_ascii=True,
+        allow_nan=True,
+        indent=None,
+        sort_keys=False,
+        object_pairs_hook=None,
+        lock_descriptor=False,
+        no_block=False
     ):
         """JSON file editor context manager.
 
@@ -63,6 +65,10 @@ class JsonEditor(BaseEditor):
         :type object_pairs_hook: typing.Optional[
                                      typing.Callable[[typing.Iterable], ...]
                                  ]
+        :param lock_descriptor: lock file descriptor during operation
+        :type lock_descriptor: bool
+        :param no_block: Raise exception if lock not acquired.
+        :type no_block: bool
         """
         self.__ensure_ascii = ensure_ascii
         self.__allow_nan = allow_nan
@@ -74,7 +80,9 @@ class JsonEditor(BaseEditor):
             JsonEditor, self
         ).__init__(
             source=source,
-            revert_on_exception=revert_on_exception
+            revert_on_exception=revert_on_exception,
+            lock_descriptor=lock_descriptor,
+            no_block=no_block,
         )
 
     @property
@@ -117,7 +125,7 @@ class JsonEditor(BaseEditor):
         """
         return self.__object_pairs_hook
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         """Repr."""
         return (
             "<{cls}("
@@ -130,47 +138,43 @@ class JsonEditor(BaseEditor):
             "object_pairs_hook={self.object_pairs_hook!r}, "
             ") at {id}>".format(
                 cls=self.__class__.__name__,
-                source=self._filename or self._file_handler,
+                source=self._filename or self._file_descriptor,
                 self=self,
                 id=id(self)
             )
         )
 
+    @property
+    def text(self):
+        """Content as text.
+
+        :rtype: str
+        """
+        return json.dumps(
+            self.content,
+            ensure_ascii=self.ensure_ascii,
+            allow_nan=self.allow_nan,
+            indent=self.indent,
+            sort_keys=self.sort_keys
+        )
+
     def _read_source(self):
         """Read content from source."""
-        if self._filename:
-            with open(self._filename) as file_handler:
-                return json.load(
-                    file_handler,
-                    object_pairs_hook=self.object_pairs_hook
-                )
-        self._file_handler.seek(0)
+        self._file_descriptor.seek(0)
         return json.load(
-            self._file_handler,
+            self._file_descriptor,
             object_pairs_hook=self.object_pairs_hook
         )
 
     def _write_source(self):
         """Write content to the target format."""
-        if self._filename:
-            with open(self._filename, 'w') as file_handler:
-                json.dump(
-                    self.content,
-                    file_handler,
-                    ensure_ascii=self.ensure_ascii,
-                    allow_nan=self.allow_nan,
-                    indent=self.indent,
-                    sort_keys=self.sort_keys
-                )
-                file_handler.flush()
-        else:
-            self._file_handler.seek(0)
-            json.dump(
-                self.content,
-                self._file_handler,
-                ensure_ascii=self.ensure_ascii,
-                allow_nan=self.allow_nan,
-                indent=self.indent,
-                sort_keys=self.sort_keys
-            )
-            self._file_handler.flush()
+        self._file_descriptor.seek(0)
+        json.dump(
+            self.content,
+            self._file_descriptor,
+            ensure_ascii=self.ensure_ascii,
+            allow_nan=self.allow_nan,
+            indent=self.indent,
+            sort_keys=self.sort_keys
+        )
+        self._file_descriptor.flush()

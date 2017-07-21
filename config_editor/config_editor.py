@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 
 import collections
+
 from six.moves import configparser
 import six
 
@@ -33,12 +34,14 @@ class ConfigEditor(BaseEditor):
     )
 
     def __init__(
-            self,
-            source,
-            revert_on_exception=True,
-            defaults=None,
-            dict_type=collections.OrderedDict,
-            allow_no_value=False
+        self,
+        source,
+        revert_on_exception=True,
+        defaults=None,
+        dict_type=collections.OrderedDict,
+        allow_no_value=False,
+        lock_descriptor=False,
+        no_block=False
     ):
         """Config (INI) file editor context manager.
 
@@ -53,6 +56,10 @@ class ConfigEditor(BaseEditor):
         :type dict_type: type
         :param allow_no_value: Allow keys without values (interpreted as None)
         :type allow_no_value: bool
+        :param lock_descriptor: lock file descriptor during operation
+        :type lock_descriptor: bool
+        :param no_block: Raise exception if lock not acquired.
+        :type no_block: bool
         """
         self.__defaults = defaults
         self.__dict_type = dict_type
@@ -61,7 +68,9 @@ class ConfigEditor(BaseEditor):
             ConfigEditor, self
         ).__init__(
             source=source,
-            revert_on_exception=revert_on_exception
+            revert_on_exception=revert_on_exception,
+            lock_descriptor=lock_descriptor,
+            no_block=no_block,
         )
 
     @property
@@ -85,7 +94,22 @@ class ConfigEditor(BaseEditor):
         """
         return self.__allow_no_value
 
-    def __repr__(self):
+    @property
+    def text(self):
+        """Content as text.
+
+        :rtype: str
+        """
+        config = self.__rebuild_parser()
+        self.__refill_config(config)
+
+        # Use StringIO as file IO
+        stream = six.StringIO()
+        config.write(stream)
+        stream.seek(0)
+        return stream.read()
+
+    def __repr__(self):  # pragma: no cover
         """Repr."""
         return (
             "<{cls}("
@@ -96,34 +120,44 @@ class ConfigEditor(BaseEditor):
             "allow_no_value={self.allow_no_value!r}, "
             ") at {id}>".format(
                 cls=self.__class__.__name__,
-                source=self._filename or self._file_handler,
+                source=self._filename or self._file_descriptor,
                 self=self,
                 id=id(self)
             )
         )
 
-    def _read_source(self):
-        """Read content from source."""
-        config = configparser.ConfigParser(
+    def __rebuild_parser(self):
+        """Rebuild ConfigParser object.
+
+        :rtype: configparser.ConfigParser
+        """
+        return configparser.ConfigParser(
             defaults=self.defaults,
             dict_type=self.dict_type,
             allow_no_value=self.allow_no_value
         )
+
+    def __refill_config(self, config):
+        """Refill config from content.
+
+        Fill manually due to no update in 2.7
+        """
+        for section, data in self.content.items():
+            config.add_section(section)
+            for option, value in data.items():
+                config.set(section, option, value)
+
+    def _read_source(self):
+        """Read content from source."""
+        config = self.__rebuild_parser()
         # pylint: disable=deprecated-method
-        if self._filename:
-            with open(self._filename) as file_handler:
-                if six.PY3:
-                    # noinspection PyUnresolvedReferences
-                    config.read_file(file_handler)
-                else:
-                    config.readfp(file_handler)
-        else:
-            self._file_handler.seek(0)
-            if six.PY3:
-                # noinspection PyUnresolvedReferences
-                config.read_file(self._file_handler)
-            else:
-                config.readfp(self._file_handler)
+        self._file_descriptor.seek(0)
+        if six.PY3:  # pragma: no cover
+            # noinspection PyUnresolvedReferences
+            config.read_file(self._file_descriptor)
+        else:  # pragma: no cover
+            # noinspection PyDeprecation
+            config.readfp(self._file_descriptor)
         # pylint: enable=deprecated-method
         # noinspection PyArgumentList
         return collections.OrderedDict(
@@ -138,22 +172,9 @@ class ConfigEditor(BaseEditor):
 
     def _write_source(self):
         """Write content to the target format."""
-        config = configparser.ConfigParser(
-            defaults=self.defaults,
-            dict_type=self.dict_type,
-            allow_no_value=self.allow_no_value
-        )
-        # Fill manually due to no update in 2.7
-        for section, data in self.content.items():
-            config.add_section(section)
-            for option, value in data.items():
-                config.set(section, option, value)
+        config = self.__rebuild_parser()
+        self.__refill_config(config)
 
-        if self._filename:
-            with open(self._filename, 'w') as file_handler:
-                config.write(file_handler)
-                file_handler.flush()
-        else:
-            self._file_handler.seek(0)
-            config.write(self._file_handler)
-            self._file_handler.flush()
+        self._file_descriptor.seek(0)
+        config.write(self._file_descriptor)
+        self._file_descriptor.flush()

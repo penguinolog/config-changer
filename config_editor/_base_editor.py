@@ -18,9 +18,8 @@ from __future__ import absolute_import
 
 import abc
 import copy
+import fcntl
 import threading
-
-import six
 
 
 BaseClass = type.__new__(abc.ABCMeta, 'BaseClass', (object, ), {})
@@ -30,51 +29,95 @@ class BaseEditor(BaseClass):
     """Base class for editors."""
 
     __slots__ = (
-        '_filename',
-        '_file_handler',
+        '_file_descriptor',
         '__revert_on_exception',
         '__original_content',
         '__content',
-        '__content_lock'
+        '__content_lock',
+        '__lock_descriptor',
+        '__no_block',
     )
 
     # noinspection PyMissingConstructor
     def __init__(
-            self,
-            source,
-            revert_on_exception=True,
+        self,
+        source,
+        revert_on_exception=True,
+        lock_descriptor=False,
+        no_block=False
     ):
         """Config file editor context manager.
 
-        :param source: source to work on (file name of handler)
+        :param source: source to work on (file descriptor)
         :type source: typing.Union[io.StringIO, str]
         :param revert_on_exception: revert all changes if exception raised
         :type revert_on_exception: bool
+        :param lock_descriptor: lock file descriptor during operation
+        :type lock_descriptor: bool
+        :param no_block: Raise exception if lock not acquired.
+        :type no_block: bool
         """
-        if isinstance(source, six.string_types):
-            self._filename = source
-            self._file_handler = None
-        else:
-            self._filename = None
-            self._file_handler = source
+        self._file_descriptor = source
         self.__revert_on_exception = revert_on_exception
         self.__original_content = None
         self.__content = None
         self.__content_lock = threading.RLock()
+        self.__lock_descriptor = lock_descriptor
+        self.__no_block = no_block
+
+    def _lock_descriptor(self):
+        """Lock file handler during operation."""
+        if self.lock_descriptor:
+            cmd = fcntl.LOCK_EX
+            if self.no_block:
+                cmd |= fcntl.LOCK_NB
+            fcntl.lockf(
+                self._file_descriptor,
+                cmd,
+            )
+
+    def _unlock_descriptor(self):
+        """Unlock file handler during operation."""
+        if self.lock_descriptor:
+            fcntl.lockf(
+                self._file_descriptor,
+                fcntl.LOCK_UN,
+            )
 
     def __enter__(self):
         """Context manager."""
-        with self.lock:
-            self.__original_content = self._read_source()
+        self.lock.acquire()
+        self._lock_descriptor()
+        self.__original_content = self._read_source()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager close."""
-        with self.lock:
+        try:
             if self.revert_on_exception and exc_type:
                 return
             if self.content != self.__original_content:
                 self._write_source()
+                self._replace_original_content()
+        finally:
+            self._unlock_descriptor()
+            self.lock.release()
+
+    @property
+    def lock_descriptor(self):
+        """Lock file handler during operation.
+
+        :rtype: bool
+        """
+        return self.__lock_descriptor
+
+    @property
+    def no_block(self):
+        """Raise exception if lock not acquired.
+
+        :rtype: bool
+        """
+        return self.__no_block
 
     @property
     def revert_on_exception(self):
@@ -86,25 +129,35 @@ class BaseEditor(BaseClass):
 
     @property
     def lock(self):
-        """RLock."""
+        """RLock.
+
+        :rtype: threading.RLock
+        """
         return self.__content_lock
 
     # noinspection PyNoneFunctionAssignment
     @property
     def content(self):
         """Parsed content."""
-        with self.lock:
-            if self.__content is None:
+        if self.__content is None:
+            with self.lock:
                 if self.__original_content is None:
                     self.__original_content = self._read_source()
                 self.__content = copy.deepcopy(self.__original_content)
-            return self.__content
+        return self.__content
 
     @content.setter
     def content(self, new_content):
         """New content setter."""
-        with self.lock:
-            self.__content = new_content
+        self.__content = new_content
+
+    @property
+    def text(self):
+        """Content as text.
+
+        :rtype: str
+        """
+        raise NotImplementedError()  # pragma: no cover
 
     @property
     def original_content(self):
