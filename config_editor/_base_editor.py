@@ -188,7 +188,7 @@ class BaseEditor(type.__new__(
     @abc.abstractmethod
     def __repr__(self):
         """Repr."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
 
 # pylint: enable=assigning-non-slot
