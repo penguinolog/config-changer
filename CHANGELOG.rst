@@ -1,5 +1,9 @@
 CHANGELOG
 =========
+Version 0.9.3
+-------------
+* Use slots due to usage of multiple instances per project
+
 Version 0.9.2
 -------------
 * Drop file open

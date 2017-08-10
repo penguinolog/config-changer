@@ -15,17 +15,25 @@
 """Config file editor base class."""
 
 from __future__ import absolute_import
+from __future__ import unicode_literals
 
 import abc
 import copy
 import fcntl
 import threading
 
+import six
 
-BaseClass = type.__new__(abc.ABCMeta, 'BaseClass', (object, ), {})
+# pylint: disable=assigning-non-slot
 
 
-class BaseEditor(BaseClass):
+class BaseEditor(type.__new__(
+    abc.ABCMeta,
+    'BaseClass' if six.PY3 else b'BaseClass',
+    (object, ),
+    {}
+)
+):
     """Base class for editors."""
 
     __slots__ = (
@@ -180,3 +188,7 @@ class BaseEditor(BaseClass):
     @abc.abstractmethod
     def __repr__(self):
         """Repr."""
+        raise NotImplementedError()
+
+
+# pylint: enable=assigning-non-slot
