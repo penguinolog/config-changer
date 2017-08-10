@@ -1,10 +1,10 @@
 Config editor
 =============
 
-.. image:: https://travis-ci.org/penguinolog/Config-editor.svg?branch=master
-    :target: https://travis-ci.org/penguinolog/Config-editor
-.. image:: https://coveralls.io/repos/github/penguinolog/Config-editor/badge.svg?branch=master
-    :target: https://coveralls.io/github/penguinolog/Config-editor?branch=master
+.. image:: https://travis-ci.org/penguinolog/config-editor.svg?branch=master
+    :target: https://travis-ci.org/penguinolog/config-editor
+.. image:: https://coveralls.io/repos/github/penguinolog/config-editor/badge.svg?branch=master
+    :target: https://coveralls.io/github/penguinolog/config-editor?branch=master
 .. image:: https://img.shields.io/pypi/v/Config-editor.svg
     :target: https://pypi.python.org/pypi/Config-editor
 .. image:: https://img.shields.io/pypi/pyversions/Config-editor.svg
